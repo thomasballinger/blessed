@@ -912,10 +912,17 @@ def first_match_and_name(patterns, ucs):
 
 
 def enumerate_by_position(parts):
-    """Yield simple unicode characters or sequences with index.
+    """Iterates over TextParts with an index, subdividing printable strings.
 
-    index is the length of characters preceding that TextPart, the
-    cumulative sum of lengths of TextParts before this one.
+    The index is the length of characters preceding that TextPart, in other
+    words the cumulative sum of lengths of TextParts before the current one.
+    TextPart instances composed of multiple printable characters (those not
+    part of a terminal sequence) will be broken into multiple TextPart
+    instances, one per character.
+
+    This is useful for splitting text into its smallest indivisible TextPart
+    units: splitting strings into characters while not breaking up terminal
+    sequences.
 
     :arg: parts: iterable of TextPart instances
     :rtype: iterator of tuple pairs of (int, TextPart)
