@@ -1096,8 +1096,8 @@ class Terminal(object):
 
             - ``ucs``: str of terminal sequence or printable characters
             - ``is_sequence``: bool for whether this is a terminal sequence
-            - ``name``: str of capability name or descriptive name of the terminal
-                sequence, or None if not a terminal sequence
+            - ``name``: str of capability name or descriptive name of the
+                terminal sequence, or None if not a terminal sequence
             - ``params``: a tuple of str parameters in the terminal sequence,
                 or None if not a terminal sequence
 

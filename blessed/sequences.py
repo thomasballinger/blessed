@@ -23,7 +23,7 @@ __all__ = ('init_sequence_patterns',
 
 
 class TextPart(collections.namedtuple('TextPart', (
-    'ucs', 'is_sequence', 'name', 'params'))):
+        'ucs', 'is_sequence', 'name', 'params'))):
     """
     Describes either a terminal sequence or a series of printable characters.
 
@@ -75,7 +75,7 @@ def _sort_sequences(regex_seqlist):
 def _build_numeric_capability(term, cap, optional=False,
                               base_num=99, nparams=1):
     r"""
-    Return regular expression for capabilities containing specified digits.
+    Return regular expressions for capabilities containing specified digits.
 
     This differs from function :func:`_build_any_numeric_capability`
     in that, for the given ``base_num`` and ``nparams``, the value of
@@ -87,8 +87,12 @@ def _build_numeric_capability(term, cap, optional=False,
     :arg str cap: terminal capability name.
     :arg int num: the numeric to use for parameterized capability.
     :arg int nparams: the number of parameters to use for capability.
-    :rtype: str
-    :returns: regular expression for the given capability.
+    :rtype: tuple
+    :returns: tuple of
+        - str name of capture group used in identifying regular expression
+        - str regular expression for identifying a capability
+        - str regular expression for extracting the params of a capability
+
     """
     _cap = getattr(term, cap)
     opt = '?' if optional else ''
@@ -100,7 +104,7 @@ def _build_numeric_capability(term, cap, optional=False,
             if str(num) in cap_re:
                 # modify & return n to matching digit expression
                 cap_re = cap_re.replace(str(num), r'(\d+){0}'.format(opt))
-                return cap, cap_re
+                return cap, cap_re, cap_params_re
         warnings.warn('Unknown parameter in {0!r}, {1!r}: {2!r})'
                       .format(cap, _cap, cap_re), UserWarning)
     return None  # no such capability
@@ -114,8 +118,11 @@ def _build_any_numeric_capability(term, cap, num=99, nparams=1):
     :arg str cap: terminal capability name.
     :arg int num: the numeric to use for parameterized capability.
     :arg int nparams: the number of parameters to use for capability.
-    :rtype: str
-    :returns: regular expression for the given capability.
+    :rtype: tuple
+    :returns: tuple of
+        - str name of capture group used in
+        - str regular expression for identifying a capability
+        - str regular expression for extracting the params of a capability
 
     Build regular expression from capabilities having *any* digit parameters:
     substitute any matching ``\d`` with literal ``\d`` and return.
@@ -144,7 +151,6 @@ def _build_simple_capability(term, cap):
     if _cap:
         return cap, re.escape(_cap)
     return None
-
 
 
 def get_movement_sequence_patterns(term):
@@ -202,7 +208,6 @@ def get_wontmove_sequence_patterns(term):
     bnc = functools.partial(_build_numeric_capability, term)
     bna = functools.partial(_build_any_numeric_capability, term)
     bsc = functools.partial(_build_simple_capability, term)
-
 
     # pylint: disable=bad-builtin
     #         Used builtin function 'map'
@@ -395,8 +400,12 @@ def init_sequence_patterns(term):
         ]
 
     # compile as regular expressions, OR'd.
-    _re_will_move = re.compile(u'({0})'.format(u'|'.join(s for c, s in _will_move if s)))
-    _re_wont_move = re.compile(u'({0})'.format(u'|'.join(s for c, s in _wont_move if s)))
+    _re_will_move = re.compile(u'({0})'.format(u'|'.join(s
+                                                         for c, s in _will_move
+                                                         if s)))
+    _re_wont_move = re.compile(u'({0})'.format(u'|'.join(s
+                                                         for c, s in _wont_move
+                                                         if s)))
 
     # static pattern matching for horizontal_distance(ucs, term)
     bnc = functools.partial(_build_numeric_capability, term)
@@ -507,7 +516,8 @@ class SequenceTextWrapper(textwrap.TextWrapper):
             term = self.term
             chunk = reversed_chunks[-1]
             for idx, part in enumerate_by_position(iter_parse(term, chunk)):
-                if Sequence(chunk[:idx + len(part.ucs)], term).length() > space_left:
+                nxt = idx + len(part.ucs)
+                if Sequence(chunk[:nxt], term).length() > space_left:
                     break
             else:
                 # our text ends with a sequence, such as in text
@@ -707,7 +717,7 @@ class Sequence(six.text_type):
         detected, those last-most characters are destroyed.
         """
         outp = u''
-        for ucs, is_sequence, _, _ in iter_parse(self._term, self):
+        for ucs, _, _, _ in iter_parse(self._term, self):
             width = horizontal_distance(ucs, self._term)
             if width > 0:
                 outp += u' ' * width
@@ -850,7 +860,7 @@ def horizontal_distance(ucs, term):
 
 def identify_part(term, ucs):
     """
-    Returns a TextPart instance describing the terminal sequence in ucs
+    Return a TextPart instance describing the terminal sequence in ucs.
 
     :arg str ucs: text beginning with a terminal sequence
     :arg blessed.Terminal term: :class:`~.Terminal` instance.
@@ -863,8 +873,8 @@ def identify_part(term, ucs):
 
         - ``ucs``: str of terminal sequence or printable characters
         - ``is_sequence``: bool for whether this is a terminal sequence
-        - ``name``: str of capability name or descriptive name of the terminal
-            sequence, or None if not a terminal sequence
+        - ``name``: str of capability name or descriptive name of the
+            terminal sequence, or None if not a terminal sequence
         - ``params``: a tuple of str parameters in the terminal sequence,
             or None if not a terminal sequence
 
@@ -901,18 +911,19 @@ def first_match_and_name(patterns, ucs):
     """Return name of the first pattern matching ucs and that match.
 
     :arg patterns: iterable of pairs of names and compiled regex patterns
-    :rtype: tuple of SRE_Match instance and the name of the pattern that matched
+    :rtype: tuple of SRE_Match instance and the name of the pattern that
+        matched or the tuple (None, None) if none did
 
     """
     for name, pat in patterns:
         matching_seq = re.match(pat, ucs)
         if matching_seq is not None:
-            return name, matching_seq
-    return None
+            return matching_seq, name
+    return None, None
 
 
 def enumerate_by_position(parts):
-    """Iterates over TextParts with an index, subdividing printable strings.
+    """Iterate over TextParts with an index, subdividing printable strings.
 
     The index is the length of characters preceding that TextPart, in other
     words the cumulative sum of lengths of TextParts before the current one.
@@ -934,8 +945,8 @@ def enumerate_by_position(parts):
             yield idx, part
             idx += len(part.ucs)
         else:
-            for uc in part.ucs:
-                yield idx, TextPart(uc, False, None, None)
+            for char in part.ucs:
+                yield idx, TextPart(char, False, None, None)
                 idx += 1
 
 
@@ -962,16 +973,16 @@ def iter_parse(term, ucs):
     outp = u''
     idx = 0
     while idx < six.text_type.__len__(ucs):
-        l = measure_length(ucs[idx:], term)
-        if l == 0:
+        length = measure_length(ucs[idx:], term)
+        if length == 0:
             outp += ucs[idx]
             idx += 1
             continue
         if outp:
             yield TextPart(outp, False, None, None)
             outp = u''
-            idx += l
-        yield identify_part(term, ucs[idx:idx+l])
+        yield identify_part(term, ucs[idx:idx + length])
+        idx += length
 
     if outp:
         # ucs ends with printable characters
